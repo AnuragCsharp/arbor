@@ -12,7 +12,7 @@
  * Prints GAME_OK on success; throws (non-zero exit) on any failed assertion.
  */
 import * as THREE from 'three';
-import { ArenaGame, TREE_HP, type GameSfx } from '../src/game.ts';
+import { ArenaGame, TREE_HP, ENEMY_COLORS, type GameSfx } from '../src/game.ts';
 
 /* ---- tiny harness ---- */
 function assert(cond: boolean, msg: string): void {
@@ -168,9 +168,58 @@ function gameOverTest(): void {
   assert(overScore === 0, `gameover: score should be 0 with no kills (got ${overScore})`);
 }
 
+/* ---- Test 6: successive enemies are distinct, valid palette colours ---- */
+function enemyColorTest(): void {
+  const scene = new THREE.Scene();
+  const c = freshCounts();
+  const game = new ArenaGame(
+    scene,
+    {
+      onScore: () => {},
+      onTreesRemaining: () => {},
+      onWave: () => {},
+      onGameOver: () => {},
+      sfx: makeSfx(c),
+    },
+    // tiny spawn interval so enemies appear quickly; attacks effectively off so
+    // the tree never falls while we accumulate a full palette cycle of spawns
+    { spawnInterval: 0.3, attackInterval: 1e9, maxEnemies: 6, rng: seeded(5) }
+  );
+  game.registerTree(new THREE.Group(), 'oak', new THREE.Vector3(0, 0, -8));
+  assert(game.start(), 'colors: start() should succeed');
+
+  // The wave system caps concurrent foes, so observe the SPAWN sequence (which
+  // survives kills). Shoot every living enemy each tick to clear waves and keep
+  // new ones — with new cycling colours — coming until we've seen a full cycle.
+  const origin = new THREE.Vector3(0, 0.2, 0);
+  for (let i = 0; i < 4000 && game.debugSpawnLog().length < ENEMY_COLORS.length && !game.isOver; i++) {
+    game.update(0.05);
+    for (const e of game.debugEnemies()) {
+      const toward = new THREE.Vector3(e.x, e.y, e.z).sub(origin).normalize();
+      game.shootRay(origin, toward);
+    }
+  }
+  const colors = game.debugSpawnLog();
+  assert(colors.length >= ENEMY_COLORS.length, `colors: should have spawned ≥${ENEMY_COLORS.length} enemies (got ${colors.length})`);
+
+  // every colour is from the palette
+  for (const col of colors) assert(ENEMY_COLORS.includes(col), `colors: ${col.toString(16)} not in palette`);
+  // the full palette is covered within one cycle, and consecutive spawns differ
+  const firstCycle = colors.slice(0, ENEMY_COLORS.length);
+  assert(new Set(firstCycle).size === ENEMY_COLORS.length, 'colors: first cycle should use every distinct palette colour');
+  for (let i = 1; i < firstCycle.length; i++) {
+    assert(firstCycle[i] !== firstCycle[i - 1], 'colors: consecutive enemies must differ');
+  }
+  // the cycle must wrap: the 1st and (N+1)th spawn share a colour when present
+  if (colors.length > ENEMY_COLORS.length) {
+    assert(colors[ENEMY_COLORS.length] === colors[0], 'colors: palette should cycle after a full round');
+  }
+}
+
 fellTest('pine');
 fellTest('oak');
 shootTest();
 gameOverTest();
+enemyColorTest();
 
 console.log('GAME_OK');

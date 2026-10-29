@@ -4,11 +4,13 @@ import { ArenaGame } from './game';
 import { sfx, unlockAudio } from './sfx';
 
 /**
- * Non-AR "Arena" driver — a first-person turret view that runs on ANY device
- * (including iOS Safari, which has no WebXR). You stand in the centre of a
- * grove: drag to look, tap the ground to plant trees, pinch to resize the last
- * one, then lock the arena. Enemies rush in from random directions to chop your
- * trees; a centre crosshair fires a laser on tap.
+ * Camera-passthrough "Arena" driver — runs on ANY device (including iOS Safari,
+ * which has no WebXR). The live rear camera fills the screen and the 3D grove +
+ * enemies composite on top; the phone's gyroscope turns the view so enemies
+ * really can come from any direction as you spin around. Where the camera or
+ * gyro are unavailable/denied it degrades gracefully to a virtual dark arena
+ * with drag-to-look. Tap the ground to plant trees, pinch to resize the last
+ * one, lock the arena, then a centre crosshair fires a laser on tap.
  */
 
 export type ArenaPhase = 'build' | 'play' | 'over';
@@ -65,6 +67,17 @@ export class ArenaExperience {
   private beams: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number }[] = [];
   private running = false;
   private raf = 0;
+
+  // real-world camera passthrough
+  private groundDisc: THREE.Mesh | null = null;
+  private video: HTMLVideoElement | null = null;
+  private stream: MediaStream | null = null;
+  private cameraLive = false;
+
+  // device-orientation (gyro) look — when active it replaces drag-look
+  private orientLive = false;
+  private screenOrient = 0;
+  private deviceQuat = new THREE.Quaternion();
 
   constructor(mount: HTMLElement, cb: ArenaCallbacks) {
     this.mount = mount;
@@ -124,6 +137,7 @@ export class ArenaExperience {
     disc.position.y = GROUND_Y;
     disc.receiveShadow = true;
     this.scene.add(disc);
+    this.groundDisc = disc;
 
     const grid = new THREE.PolarGridHelper(MAX_PLACE_R + 4, 16, 8, 64, 0x2f6b48, 0x1e3a2b);
     (grid.material as THREE.Material).transparent = true;
@@ -142,7 +156,7 @@ export class ArenaExperience {
     this.running = true;
     this.phase = 'build';
     this.cb.onPhase('build');
-    this.cb.onHint('Tap the ground to plant a tree. Pinch to resize. Drag to look around.');
+    this.cb.onHint('Point your phone at the floor and tap to plant a tree. Pinch to resize.');
     this.loop();
   }
 
@@ -151,10 +165,145 @@ export class ArenaExperience {
     cancelAnimationFrame(this.raf);
     this.detachInput();
     window.removeEventListener('resize', this.resize);
+    this.stopCamera();
+    this.disableOrientation();
     this.game.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
+
+  /* ---------- real-world sensors (camera + gyro) ---------- */
+
+  /**
+   * Turn on the real-world camera feed and gyro look. MUST be called from within
+   * the user gesture that opened the arena (iOS requires that for the camera and
+   * orientation permission prompts). Requests both synchronously, then awaits.
+   * Degrades gracefully — a denial just leaves the virtual arena in place.
+   */
+  async enableSensors(): Promise<{ camera: boolean; orientation: boolean }> {
+    // kick off both permission requests synchronously (keeps the gesture valid)
+    const orientationP = this.requestOrientation();
+    const cameraP = this.enableCamera();
+    const [orientation, camera] = await Promise.all([orientationP, cameraP]);
+
+    if (camera && orientation) {
+      this.cb.onHint('Point at your floor and tap to plant. Turn around to defend every side.');
+    } else if (camera) {
+      this.cb.onHint('Camera on. Point at the floor and tap to plant — drag to look around.');
+    } else {
+      this.cb.onHint('Camera unavailable — playing in virtual mode. Tap the ground to plant a tree.');
+    }
+    return { camera, orientation };
+  }
+
+  private async enableCamera(): Promise<boolean> {
+    if (this.cameraLive) return true; // already streaming — don't open a second device
+    const md = navigator.mediaDevices;
+    if (!md?.getUserMedia) return false;
+    try {
+      this.stream = await md.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+    } catch {
+      return false;
+    }
+    const video = document.createElement('video');
+    video.className = 'arena-cam';
+    video.playsInline = true;
+    video.muted = true;
+    video.autoplay = true;
+    video.setAttribute('playsinline', ''); // iOS needs the attribute too
+    video.srcObject = this.stream;
+    // insert BEHIND the canvas so the 3D scene composites over the feed
+    this.mount.insertBefore(video, this.mount.firstChild);
+    this.video = video;
+    try {
+      await video.play();
+    } catch {
+      /* some browsers resolve play() late; the element still renders frames */
+    }
+
+    // reveal the real world: drop the solid virtual floor + fog
+    if (this.groundDisc) this.groundDisc.visible = false;
+    this.scene.fog = null;
+    this.renderer.setClearAlpha(0);
+    this.cameraLive = true;
+    return true;
+  }
+
+  private stopCamera(): void {
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    if (this.video) {
+      this.video.srcObject = null;
+      this.video.remove();
+      this.video = null;
+    }
+    this.cameraLive = false;
+  }
+
+  private requestOrientation(): Promise<boolean> {
+    const DOE = window.DeviceOrientationEvent as
+      | (typeof DeviceOrientationEvent & { requestPermission?: () => Promise<PermissionState> })
+      | undefined;
+    if (!DOE) return Promise.resolve(false);
+
+    this.screenOrient = this.readScreenOrient();
+
+    // iOS 13+ gatekeeps behind an explicit permission call (needs a gesture)
+    if (typeof DOE.requestPermission === 'function') {
+      return DOE.requestPermission()
+        .then((state) => {
+          if (state !== 'granted') return false;
+          this.attachOrientation();
+          return true;
+        })
+        .catch(() => false);
+    }
+    // other platforms: attach directly
+    this.attachOrientation();
+    return Promise.resolve(true);
+  }
+
+  private attachOrientation(): void {
+    window.addEventListener('deviceorientation', this.onDeviceOrientation, true);
+    window.addEventListener('orientationchange', this.onScreenOrientation);
+    this.orientLive = true;
+  }
+
+  private disableOrientation(): void {
+    window.removeEventListener('deviceorientation', this.onDeviceOrientation, true);
+    window.removeEventListener('orientationchange', this.onScreenOrientation);
+    this.orientLive = false;
+  }
+
+  private readScreenOrient(): number {
+    const a = screen.orientation?.angle ?? (window.orientation as number | undefined) ?? 0;
+    return THREE.MathUtils.degToRad(a);
+  }
+
+  private onScreenOrientation = (): void => {
+    this.screenOrient = this.readScreenOrient();
+  };
+
+  // reusable scratch for the gyro→quaternion conversion (no per-frame allocation)
+  private static readonly ZEE = new THREE.Vector3(0, 0, 1);
+  private static readonly Q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+  private _euler = new THREE.Euler();
+  private _q0 = new THREE.Quaternion();
+
+  private onDeviceOrientation = (e: DeviceOrientationEvent): void => {
+    if (e.alpha == null) return;
+    const alpha = THREE.MathUtils.degToRad(e.alpha);
+    const beta = THREE.MathUtils.degToRad(e.beta ?? 0);
+    const gamma = THREE.MathUtils.degToRad(e.gamma ?? 0);
+    // standard THREE device-orientation math (screen upright = look forward)
+    this._euler.set(beta, alpha, -gamma, 'YXZ');
+    this.deviceQuat.setFromEuler(this._euler);
+    this.deviceQuat.multiply(ArenaExperience.Q1); // camera looks out the back
+    this.deviceQuat.multiply(this._q0.setFromAxisAngle(ArenaExperience.ZEE, -this.screenOrient));
+  };
 
   private resize = (): void => {
     const w = this.mount.clientWidth || window.innerWidth;
@@ -360,14 +509,16 @@ export class ArenaExperience {
       return;
     }
 
-    // single pointer → look around
+    // single pointer → look around (only when the gyro isn't driving the view)
     if (this.down) {
       if (Math.abs(e.clientX - this.down.x) > TAP_MOVE_PX || Math.abs(e.clientY - this.down.y) > TAP_MOVE_PX) {
         this.down.moved = true;
       }
-      this.yaw -= dx * LOOK_SENS;
-      this.pitch -= dy * LOOK_SENS;
-      this.pitch = Math.max(-1.2, Math.min(0.5, this.pitch));
+      if (!this.orientLive) {
+        this.yaw -= dx * LOOK_SENS;
+        this.pitch -= dy * LOOK_SENS;
+        this.pitch = Math.max(-1.2, Math.min(0.5, this.pitch));
+      }
     }
   };
 
@@ -414,8 +565,12 @@ export class ArenaExperience {
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
-    // camera orientation from yaw/pitch
-    this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+    // camera orientation: the phone's gyro when live, else drag-driven yaw/pitch
+    if (this.orientLive) {
+      this.camera.quaternion.copy(this.deviceQuat);
+    } else {
+      this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
+    }
 
     // build-phase placement reticle follows the screen centre
     if (this.phase === 'build') {

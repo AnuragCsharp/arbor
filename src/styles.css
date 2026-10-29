@@ -435,6 +435,17 @@ body {
   display: block;
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 1; /* 3D scene composites over the camera feed */
+}
+/* live rear-camera passthrough feed, sits behind the transparent canvas */
+.arena-cam {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
 }
 
 /* every overlay sits above the canvas but lets taps fall through to it */

@@ -227,6 +227,9 @@ function startArena(): void {
 
   setArenaPhase('build');
   arena.start();
+  // turn on the real-world camera + gyro from inside this user gesture
+  // (iOS requires the gesture for both permission prompts); degrades gracefully
+  void arena.enableSensors();
 }
 
 function quitArena(): void {

@@ -13,6 +13,17 @@ import { type TreeType } from './trees';
 /** Hit points per tree species — sturdier trees take more hits to fell. */
 export const TREE_HP: Record<TreeType, number> = { pine: 3, palm: 4, oak: 5 };
 
+/** Vivid, distinct body colours so each enemy reads as its own creature. */
+export const ENEMY_COLORS: number[] = [
+  0xff4d4d, // red
+  0xff9f1c, // orange
+  0xffd60a, // yellow
+  0x4cd964, // green
+  0x30c0ff, // cyan-blue
+  0xb084ff, // purple
+  0xff5fa2, // pink
+];
+
 export interface GameSfx {
   chop(): void;
   explosion(): void;
@@ -65,6 +76,7 @@ interface Enemy {
   hitRadius: number;
   speed: number;
   bobPhase: number;
+  bodyColor: number;
 }
 
 const DEFAULTS: Required<Omit<GameOptions, 'rng'>> = {
@@ -95,6 +107,8 @@ export class ArenaGame {
   private spawnTimer = 0;
   private spawnedThisWave = 0;
   private waveSize = 3;
+  private spawnIndex = 0; // cycles ENEMY_COLORS so consecutive enemies differ
+  private spawnLog: number[] = []; // body colour of every enemy spawned, in order
 
   constructor(scene: THREE.Scene, cb: GameCallbacks, options: GameOptions = {}) {
     this.scene = scene;
@@ -139,6 +153,17 @@ export class ArenaGame {
     return this.enemies
       .filter((e) => e.alive)
       .map((e) => ({ x: e.pos.x, y: e.pos.y, z: e.pos.z, hitRadius: e.hitRadius }));
+  }
+
+  /** test/debug read-out of each living enemy's body colour (hex). */
+  debugEnemyColors(): number[] {
+    return this.enemies.filter((e) => e.alive).map((e) => e.bodyColor);
+  }
+
+  /** test/debug read-out of the body colour of every enemy spawned, in order
+   *  (survives kills — the live list cannot, since waves cap concurrent foes). */
+  debugSpawnLog(): number[] {
+    return this.spawnLog.slice();
   }
 
   /** Lock the arena and begin the assault. Needs at least one tree. */
@@ -265,7 +290,11 @@ export class ArenaGame {
       0,
       this.center.z + Math.sin(angle) * this.spawnRadius
     );
-    const mesh = createEnemy();
+    // cycle the palette (no RNG draw) so each enemy is a distinct colour
+    const bodyColor = ENEMY_COLORS[this.spawnIndex % ENEMY_COLORS.length];
+    this.spawnIndex++;
+    this.spawnLog.push(bodyColor);
+    const mesh = createEnemy(bodyColor);
     mesh.position.copy(pos);
     this.scene.add(mesh);
     const enemy: Enemy = {
@@ -277,6 +306,7 @@ export class ArenaGame {
       hitRadius: 0.42,
       speed: this.opt.enemySpeed + this.rng() * 0.2,
       bobPhase: this.rng() * Math.PI * 2,
+      bodyColor,
     };
     this.enemies.push(enemy);
   }
@@ -360,12 +390,21 @@ function enemyRes() {
   return enemyCache;
 }
 
-/** A small, menacing low-poly creature that crawls toward the trees. */
-export function createEnemy(): THREE.Group {
+/**
+ * A small, menacing low-poly creature that crawls toward the trees.
+ * `bodyColor` tints this enemy's body (and emissive glow) so each one is a
+ * distinct colour; the body material is cloned per enemy and disposed on kill.
+ */
+export function createEnemy(bodyColor = 0x3a0d12): THREE.Group {
   const r = enemyRes();
   const g = new THREE.Group();
 
-  const body = new THREE.Mesh(r.body, r.bodyMat);
+  const bodyMat = r.bodyMat.clone();
+  bodyMat.color.setHex(bodyColor);
+  bodyMat.emissive = new THREE.Color(bodyColor);
+  bodyMat.emissiveIntensity = 0.28; // subtle self-glow so colour reads in shade
+  bodyMat.userData.owned = true; // flag so disposeObject frees this clone
+  const body = new THREE.Mesh(r.body, bodyMat);
   body.position.y = 0.3;
   body.castShadow = true;
   g.add(body);
@@ -390,8 +429,12 @@ export function createEnemy(): THREE.Group {
 function disposeObject(obj: THREE.Object3D): void {
   obj.traverse((o) => {
     const m = o as THREE.Mesh;
-    // geometry & materials are shared/cached; just drop references
-    if (m.isMesh) m.clear();
+    if (!m.isMesh) return;
+    // geometry & most materials are shared/cached; only per-enemy clones
+    // (flagged `owned`) are ours to dispose.
+    const mat = m.material as THREE.Material & { userData?: { owned?: boolean } };
+    if (mat && mat.userData?.owned) mat.dispose();
+    m.clear();
   });
   obj.clear();
 }
