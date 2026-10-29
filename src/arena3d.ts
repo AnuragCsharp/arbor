@@ -74,10 +74,14 @@ export class ArenaExperience {
   private stream: MediaStream | null = null;
   private cameraLive = false;
 
-  // device-orientation (gyro) look — when active it replaces drag-look
+  // device-orientation (gyro) look — when active it replaces drag-look.
+  // deviceQuatTarget is the raw reading; deviceQuat is a smoothed follower so
+  // gyro jitter doesn't make the planted trees visibly shiver frame-to-frame.
   private orientLive = false;
+  private orientPrimed = false;
   private screenOrient = 0;
   private deviceQuat = new THREE.Quaternion();
+  private deviceQuatTarget = new THREE.Quaternion();
 
   constructor(mount: HTMLElement, cb: ArenaCallbacks) {
     this.mount = mount;
@@ -156,7 +160,7 @@ export class ArenaExperience {
     this.running = true;
     this.phase = 'build';
     this.cb.onPhase('build');
-    this.cb.onHint('Point your phone at the floor and tap to plant a tree. Pinch to resize.');
+    this.cb.onHint('Tap anywhere on the ground to plant a tree. Pinch to resize · switch trees below.');
     this.loop();
   }
 
@@ -187,9 +191,9 @@ export class ArenaExperience {
     const [orientation, camera] = await Promise.all([orientationP, cameraP]);
 
     if (camera && orientation) {
-      this.cb.onHint('Point at your floor and tap to plant. Turn around to defend every side.');
+      this.cb.onHint('Tap the floor to plant where you point. Turn around to defend every side.');
     } else if (camera) {
-      this.cb.onHint('Camera on. Point at the floor and tap to plant — drag to look around.');
+      this.cb.onHint('Camera on. Tap the ground to plant — drag to look around.');
     } else {
       this.cb.onHint('Camera unavailable — playing in virtual mode. Tap the ground to plant a tree.');
     }
@@ -267,6 +271,7 @@ export class ArenaExperience {
   }
 
   private attachOrientation(): void {
+    this.orientPrimed = false;
     window.addEventListener('deviceorientation', this.onDeviceOrientation, true);
     window.addEventListener('orientationchange', this.onScreenOrientation);
     this.orientLive = true;
@@ -300,9 +305,14 @@ export class ArenaExperience {
     const gamma = THREE.MathUtils.degToRad(e.gamma ?? 0);
     // standard THREE device-orientation math (screen upright = look forward)
     this._euler.set(beta, alpha, -gamma, 'YXZ');
-    this.deviceQuat.setFromEuler(this._euler);
-    this.deviceQuat.multiply(ArenaExperience.Q1); // camera looks out the back
-    this.deviceQuat.multiply(this._q0.setFromAxisAngle(ArenaExperience.ZEE, -this.screenOrient));
+    this.deviceQuatTarget.setFromEuler(this._euler);
+    this.deviceQuatTarget.multiply(ArenaExperience.Q1); // camera looks out the back
+    this.deviceQuatTarget.multiply(this._q0.setFromAxisAngle(ArenaExperience.ZEE, -this.screenOrient));
+    // snap on the first reading so we don't swing in from identity
+    if (!this.orientPrimed) {
+      this.deviceQuat.copy(this.deviceQuatTarget);
+      this.orientPrimed = true;
+    }
   };
 
   private resize = (): void => {
@@ -431,6 +441,24 @@ export class ArenaExperience {
     this.cb.onGameOver(score);
   }
 
+  /* ---------- test/debug hooks (used by the headless arena gate) ---------- */
+
+  /** place a tree via normalized device coords; returns the planted world
+   *  {x,z}, or null if that screen point isn't valid ground. */
+  debugPlaceAtNdc(nx: number, ny: number): { x: number; z: number } | null {
+    if (this.phase !== 'build') return null;
+    const pt = this.groundPointFromNdc(nx, ny);
+    if (!pt) return null;
+    this.placeAt(pt);
+    return { x: pt.x, z: pt.z };
+  }
+  debugPlacedCount(): number {
+    return this.placed.length;
+  }
+  debugPhase(): ArenaPhase {
+    return this.phase;
+  }
+
   /* ---------- shooting ---------- */
 
   private shoot(): void {
@@ -536,12 +564,23 @@ export class ArenaExperience {
     if (this.phase === 'play') {
       this.shoot();
     } else if (this.phase === 'build') {
-      // plant where the centred preview ring sits (the aim point)
-      const pt = this.centerScreenGroundPoint();
+      // plant exactly where the finger tapped (NOT the screen centre) so trees
+      // land at distinct spots instead of stacking on top of each other
+      const ndc = this.ndcFromClient(d.x, d.y);
+      const pt = this.groundPointFromNdc(ndc.x, ndc.y);
       if (pt) this.placeAt(pt);
-      else this.cb.onHint('Aim at open ground around you (not too close, not too far) to plant.');
+      else this.cb.onHint('Tap on open ground around you (not too close, not too far) to plant a tree.');
     }
   };
+
+  /** convert a client (screen) point to normalized device coords on the canvas */
+  private ndcFromClient(x: number, y: number): THREE.Vector2 {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return new THREE.Vector2(
+      ((x - rect.left) / rect.width) * 2 - 1,
+      -((y - rect.top) / rect.height) * 2 + 1
+    );
+  }
 
   private pointerDistance(): number {
     const pts = [...this.pointers.values()];
@@ -565,8 +604,11 @@ export class ArenaExperience {
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
-    // camera orientation: the phone's gyro when live, else drag-driven yaw/pitch
+    // camera orientation: the phone's gyro when live, else drag-driven yaw/pitch.
+    // low-pass the gyro toward its latest reading so the view (and the trees
+    // anchored in it) glides instead of shivering with sensor noise.
     if (this.orientLive) {
+      this.deviceQuat.slerp(this.deviceQuatTarget, 0.5);
       this.camera.quaternion.copy(this.deviceQuat);
     } else {
       this.camera.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));

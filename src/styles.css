@@ -448,12 +448,17 @@ body {
   z-index: 0;
 }
 
-/* every overlay sits above the canvas but lets taps fall through to it */
+/* every overlay sits above the canvas but lets taps fall through to it.
+   z-index:2 is REQUIRED: the scene canvas is z-index:1 (to composite over the
+   camera video at z-index:0), so without this the canvas would paint on top of
+   the HUD and swallow taps meant for the Lock button and tree picker. */
 .arena > *:not(.arena__mount) {
   pointer-events: none;
+  z-index: 2;
 }
 .arena .btn,
-.arena .chip--btn {
+.arena .chip--btn,
+.arena-treepick button {
   pointer-events: auto;
 }
 
@@ -564,6 +569,44 @@ body {
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+/* in-arena tree picker — switch which tree the next tap plants */
+.arena-treepick {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.arena-treepick button {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px 7px 9px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.arena-treepick button[aria-pressed='true'] {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.4);
+}
+.arena-treepick button:active {
+  transform: scale(0.96);
+}
+.arena-treepick button svg {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 
 .arena-over {

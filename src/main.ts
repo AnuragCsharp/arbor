@@ -39,6 +39,7 @@ const arenaTrees = $('arenaTrees');
 const arenaWave = $('arenaWave');
 const arenaHint = $('arenaHint');
 const arenaBuild = $('arenaBuild');
+const arenaTreePick = $('arenaTreePick');
 const arenaCount = $('arenaCount');
 const arenaOver = $('arenaOver');
 const arenaFinal = $('arenaFinal');
@@ -81,10 +82,28 @@ function buildSelector(): void {
   }
 }
 
+function buildArenaPicker(): void {
+  arenaTreePick.innerHTML = '';
+  for (const type of TREE_TYPES) {
+    const spec = TREE_SPECS[type];
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.type = type;
+    btn.setAttribute('aria-pressed', String(type === currentTree));
+    btn.innerHTML = `${thumbSvg(type)}<span>${spec.label}</span>`;
+    btn.addEventListener('click', () => selectTree(type));
+    arenaTreePick.appendChild(btn);
+  }
+}
+
 function selectTree(type: TreeType): void {
   currentTree = type;
   hudTree.textContent = TREE_SPECS[type].label;
   for (const el of selectorEl.querySelectorAll<HTMLElement>('.thumb')) {
+    el.setAttribute('aria-pressed', String(el.dataset.type === type));
+  }
+  // keep the in-arena picker in sync with the shared selection
+  for (const el of arenaTreePick.querySelectorAll<HTMLElement>('button')) {
     el.setAttribute('aria-pressed', String(el.dataset.type === type));
   }
 }
@@ -225,6 +244,9 @@ function startArena(): void {
     },
   });
 
+  // expose the live instance for the headless arena gate (harmless in prod)
+  (window as unknown as { __arena?: ArenaExperience }).__arena = arena;
+
   setArenaPhase('build');
   arena.start();
   // turn on the real-world camera + gyro from inside this user gesture
@@ -282,6 +304,7 @@ function hintForReport(r: CapabilityReport): string {
 /* ---------- boot ---------- */
 async function boot(): Promise<void> {
   buildSelector();
+  buildArenaPicker();
   selectTree(currentTree);
   wireControls();
 

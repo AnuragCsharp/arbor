@@ -49,6 +49,11 @@ const required: [string, string, RegExp][] = [
   ['arena3d.ts', 'gyro orientation permission requested', /DOE\.requestPermission === 'function'[\s\S]*DOE\.requestPermission\(\)/],
   ['arena3d.ts', 'gyro drives the camera view', /this\.orientLive[\s\S]*this\.camera\.quaternion\.copy\(this\.deviceQuat\)/],
   ['main.ts', 'arena enables real-world sensors in gesture', /arena\.enableSensors\(\)/],
+  // input + build UX fixes
+  ['arena3d.ts', 'tap plants at the tapped point, not screen centre', /groundPointFromNdc\(ndc\.x, ndc\.y\)/],
+  ['arena3d.ts', 'gyro reading is low-pass smoothed', /this\.deviceQuat\.slerp\(this\.deviceQuatTarget/],
+  ['main.ts', 'in-arena tree picker built + wired to selectTree', /buildArenaPicker[\s\S]*addEventListener\('click', \(\) => selectTree\(type\)\)/],
+  ['main.ts', 'tree picker stays in sync with selection', /arenaTreePick\.querySelectorAll[\s\S]*aria-pressed/],
   ['game.ts', 'per-species hit points', /TREE_HP[\s\S]*pine:\s*3[\s\S]*oak:\s*5/],
   ['game.ts', 'enemies get distinct colours from a palette', /ENEMY_COLORS[\s\S]*spawnIndex % ENEMY_COLORS\.length/],
   ['game.ts', 'per-enemy body material is cloned + tinted', /createEnemy\(bodyColor[\s\S]*bodyMat = r\.bodyMat\.clone\(\)[\s\S]*bodyMat\.color\.setHex/],
