@@ -1,5 +1,9 @@
 # 🌳 ARBOR — plant trees in your room, right from the web
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![Live demo](https://img.shields.io/badge/demo-live-brightgreen.svg)](https://anuragcsharp.github.io/arbor/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-blueviolet.svg)](./CONTRIBUTING.md)
+
 ARBOR is an **install-free, mobile-first web AR playground**. Open one HTTPS URL
 on your phone and place procedural low-poly trees — oak, pine, palm — on your
 real floor. No app store, no login, no backend, no database.
