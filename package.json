@@ -1,0 +1,26 @@
+{
+  "name": "arbor-web-ar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ARBOR — a free, install-free, mobile-first Web AR tree-planting playground.",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:assets && tsc --noEmit && vite build",
+    "build:assets": "tsx scripts/build-assets.ts",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/model-viewer": "^3.5.0",
+    "three": "~0.163.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/three": "~0.163.0",
+    "@types/webxr": "^0.5.20",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
