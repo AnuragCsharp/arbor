@@ -44,6 +44,25 @@ entry is a USD file**. Rather than converting at runtime, ARBOR exports tested
 `GLTFExporter`, and a gate (`verify-assets`) validates the zip/glB structure
 before anything ships.
 
+## 🎮 Arena Mode
+
+Tap **🎮 Arena Mode** on the intro for the tower-defence layer. It's a
+**universal non-AR 3D mode** (plain Three.js) on purpose — iPhone Safari has no
+WebXR, so the game runs on *every* phone, with WebXR staying the bonus AR path.
+
+1. Plant trees one by one; pinch to resize the last one; switch species from the
+   in-arena picker.
+2. Hit **Lock Arena** — enemies start spawning from every direction and chop the
+   nearest tree (per-species HP: pine 3 / palm 4 / oak 5).
+3. The centre crosshair fires a laser on tap; score rises, waves escalate, and
+   felling your last tree ends the run. Replay rebuilds it.
+
+On phones that grant it, Arena uses **camera passthrough** (live rear camera
+behind a transparent canvas) with **gyro** look, so enemies come at you from
+around your real room. That tracking is **rotational only** — walking around
+physically will cause parallax drift, because iOS Safari has no positional/SLAM
+tracking without WebXR. ARBOR says so rather than pretending otherwise.
+
 ## Run locally
 
 ```bash
@@ -112,3 +131,26 @@ supported, do this QA pass on the actual device:
 - The on-screen HUD during WebXR depends on the DOM-overlay feature; where it's absent, controls are hidden rather than faked.
 - Growth/size apply to the in-page WebXR trees; inside native Quick Look / Scene Viewer, iOS/Android own placement and scaling.
 - Physical-device results are only claimed after a real device QA pass (above).
+
+## Contributing
+
+ARBOR is open — **fork it, remix it, make it yours.** Plant new trees, add
+seasons, rework the game, redesign everything. See
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) for how to run it, the gate checklist, and
+the PR flow.
+
+Built with an AI agent and set up to keep being extended that way:
+
+- [`CLAUDE.md`](./CLAUDE.md) — drop-in context for an AI agent (house rules +
+  file map). Claude Code reads it automatically; paste it into any other tool.
+- [`PROMPT.md`](./PROMPT.md) — the original prompt that created ARBOR plus
+  copy-paste prompts for common extensions, so you can point an AI at the repo
+  and go.
+
+You don't need AI to contribute — it's plain TypeScript — but those files are the
+fast path if you want it.
+
+## License
+
+[MIT](./LICENSE) — do whatever you like with it, no warranty. By contributing you
+agree your contribution is MIT-licensed too.
