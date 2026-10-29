@@ -14,6 +14,9 @@ const read = (f: string) => readFileSync(resolve(src, f), 'utf8');
 const main = read('main.ts');
 const ar = read('ar.ts');
 const ios = read('ios.ts');
+const arena = read('arena3d.ts');
+const game = read('game.ts');
+const sfx = read('sfx.ts');
 const problems: string[] = [];
 
 // each control must be looked up AND bound to a handler
@@ -27,10 +30,34 @@ const required: [string, string, RegExp][] = [
   ['ar.ts', 'hit-test required', /requiredFeatures:\s*\['hit-test'\]/],
   ['ar.ts', 'growth animation', /growthScale\(/],
   ['ar.ts', 'reticle gating on placement', /if \(!this\.reticle\.visible/],
+  ['ar.ts', 'pinch-resize → rescaleLast', /onTouchMove[\s\S]*rescaleLast\(target\)/],
   ['ios.ts', 'usdz handed to Quick Look', /ios-src.*\.usdz/s],
+  // arena game — entry + build controls + play loop
+  ['main.ts', 'arenaBtn → startArena', /arenaBtn\.addEventListener\('click'.*startArena/s],
+  ['main.ts', 'arenaLock → lockArena', /arenaLock'\)\.addEventListener\('click'.*lockArena/s],
+  ['main.ts', 'arenaExit → quitArena', /arenaExit'\)\.addEventListener\('click'.*quitArena/s],
+  ['main.ts', 'arenaReplay → restart', /arenaReplay'\)\.addEventListener\('click'.*restart/s],
+  ['arena3d.ts', 'pointer input bound', /addEventListener\('pointerdown', this\.onPointerDown\)/],
+  ['arena3d.ts', 'tap in play → shoot', /this\.phase === 'play'[\s\S]*this\.shoot\(\)/],
+  ['arena3d.ts', 'play loop drives game.update', /this\.phase === 'play'\) this\.game\.update\(dt\)/],
+  ['arena3d.ts', 'pinch resizes last tree', /applyPinch\(\)[\s\S]*pinchBase \* ratio/],
+  ['arena3d.ts', 'laser fired on shoot', /shoot\(\)[\s\S]*sfx\.laser\(\)/],
+  ['game.ts', 'per-species hit points', /TREE_HP[\s\S]*pine:\s*3[\s\S]*oak:\s*5/],
+  ['game.ts', 'enemy chop decrements hp', /strike\(tree[\s\S]*tree\.hp -= 1[\s\S]*sfx\.chop\(\)/],
+  ['game.ts', 'ray kills + scores', /shootRay\([\s\S]*this\.kill\(best\)/],
+  ['game.ts', 'spawn from random direction', /spawn\(\)[\s\S]*this\.rng\(\) \* Math\.PI \* 2/],
+  ['sfx.ts', 'audio unlocked on gesture', /export function unlockAudio/],
+  ['sfx.ts', 'laser sound defined', /export function sfxLaser/],
 ];
 
-const files: Record<string, string> = { 'main.ts': main, 'ar.ts': ar, 'ios.ts': ios };
+const files: Record<string, string> = {
+  'main.ts': main,
+  'ar.ts': ar,
+  'ios.ts': ios,
+  'arena3d.ts': arena,
+  'game.ts': game,
+  'sfx.ts': sfx,
+};
 for (const [file, label, re] of required) {
   if (!re.test(files[file])) problems.push(`${file}: "${label}" not wired`);
 }

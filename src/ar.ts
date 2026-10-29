@@ -41,6 +41,12 @@ export class ARExperience {
 
   private placed: Placed[] = [];
 
+  // pinch-to-resize (two-finger) over the DOM overlay
+  private overlayRoot: HTMLElement | null = null;
+  private pinchStartDist = 0;
+  private pinchBaseScale = 1;
+  private pinching = false;
+
   constructor(cb: ARCallbacks) {
     this.cb = cb;
 
@@ -147,9 +153,47 @@ export class ARExperience {
     session.addEventListener('select', this.onSelect);
     session.addEventListener('end', this.onEnd);
 
+    // two-finger pinch over the DOM overlay resizes the most recent tree
+    if (this.domOverlayActive && overlayRoot) {
+      this.overlayRoot = overlayRoot;
+      overlayRoot.addEventListener('touchstart', this.onTouchStart, { passive: false });
+      overlayRoot.addEventListener('touchmove', this.onTouchMove, { passive: false });
+      overlayRoot.addEventListener('touchend', this.onTouchEnd);
+      overlayRoot.addEventListener('touchcancel', this.onTouchEnd);
+    }
+
     this.renderer.setAnimationLoop(this.onFrame);
     return true;
   }
+
+  private touchDistance(t: TouchList): number {
+    const dx = t[0].clientX - t[1].clientX;
+    const dy = t[0].clientY - t[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  private onTouchStart = (e: TouchEvent): void => {
+    if (e.touches.length === 2) {
+      this.pinching = true;
+      this.pinchStartDist = this.touchDistance(e.touches);
+      const last = this.placed[this.placed.length - 1];
+      this.pinchBaseScale = last ? last.baseScale : this.cb.getScale();
+      e.preventDefault();
+    }
+  };
+
+  private onTouchMove = (e: TouchEvent): void => {
+    if (!this.pinching || e.touches.length < 2 || this.pinchStartDist <= 0) return;
+    e.preventDefault();
+    const ratio = this.touchDistance(e.touches) / this.pinchStartDist;
+    const target = Math.max(0.3, Math.min(3, this.pinchBaseScale * ratio));
+    this.rescaleLast(target);
+    this.cb.onStatus(`Size ${Math.round(target * 100)}%`, 'info');
+  };
+
+  private onTouchEnd = (e: TouchEvent): void => {
+    if (e.touches.length < 2) this.pinching = false;
+  };
 
   private onSelect = (): void => {
     if (!this.reticle.visible || !this.lastHit || !this.refSpace) return;
@@ -284,6 +328,14 @@ export class ARExperience {
     this.hitTestSource?.cancel?.();
     this.hitTestSource = null;
     this.session = null;
+    if (this.overlayRoot) {
+      this.overlayRoot.removeEventListener('touchstart', this.onTouchStart);
+      this.overlayRoot.removeEventListener('touchmove', this.onTouchMove);
+      this.overlayRoot.removeEventListener('touchend', this.onTouchEnd);
+      this.overlayRoot.removeEventListener('touchcancel', this.onTouchEnd);
+      this.overlayRoot = null;
+    }
+    this.pinching = false;
     this.clear();
     this.cb.onSessionEnd();
   };

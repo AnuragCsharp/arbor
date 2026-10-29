@@ -387,3 +387,214 @@ body {
   transform: translateX(-50%);
   white-space: nowrap;
 }
+
+/* ---------- intro divider + arena entry button ---------- */
+.intro__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.intro__divider::before,
+.intro__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--stroke);
+}
+.btn--arena {
+  background: linear-gradient(180deg, rgba(255, 193, 72, 0.18), rgba(255, 107, 107, 0.16));
+  color: var(--ink);
+  border: 1px solid rgba(255, 193, 72, 0.5);
+  font-size: 15px;
+}
+
+/* ---------- arena game ---------- */
+.arena {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  overflow: hidden;
+}
+.arena__mount {
+  position: absolute;
+  inset: 0;
+  touch-action: none; /* we handle all gestures ourselves */
+}
+.arena__mount canvas,
+.arena-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* every overlay sits above the canvas but lets taps fall through to it */
+.arena > *:not(.arena__mount) {
+  pointer-events: none;
+}
+.arena .btn,
+.arena .chip--btn {
+  pointer-events: auto;
+}
+
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  transform: translate(-50%, -50%);
+}
+.crosshair__ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(125, 255, 176, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(125, 255, 176, 0.5), inset 0 0 6px rgba(125, 255, 176, 0.3);
+}
+.crosshair__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #7dffb0;
+  transform: translate(-50%, -50%);
+}
+.crosshair__tick {
+  position: absolute;
+  background: rgba(125, 255, 176, 0.85);
+}
+.crosshair__tick--t,
+.crosshair__tick--b {
+  left: 50%;
+  width: 2px;
+  height: 9px;
+  transform: translateX(-50%);
+}
+.crosshair__tick--l,
+.crosshair__tick--r {
+  top: 50%;
+  height: 2px;
+  width: 9px;
+  transform: translateY(-50%);
+}
+.crosshair__tick--t {
+  top: -13px;
+}
+.crosshair__tick--b {
+  bottom: -13px;
+}
+.crosshair__tick--l {
+  left: -13px;
+}
+.crosshair__tick--r {
+  right: -13px;
+}
+
+.arena-hud {
+  position: absolute;
+  top: calc(var(--safe-top) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+.arena-hud .chip {
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+.arena-hud b {
+  color: var(--green);
+}
+
+.arena-exit {
+  position: absolute;
+  top: calc(var(--safe-top) + 14px);
+  right: calc(var(--safe-right) + 14px);
+}
+
+.arena-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--safe-top) + 62px);
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: min(90vw, 460px);
+  text-align: center;
+  font-size: 13px;
+  color: #eafaf1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.arena-build {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + 120px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0 calc(var(--safe-right) + 14px) 0 calc(var(--safe-left) + 14px);
+}
+.arena-build__row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.arena-over {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 9, 7, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: auto;
+}
+.arena-over__card {
+  width: min(88vw, 360px);
+  padding: 28px 24px;
+  border-radius: 22px;
+  text-align: center;
+  background: var(--glass);
+  border: 1px solid var(--stroke);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.arena-over__card h2 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  letter-spacing: 1px;
+}
+.arena-over__card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.arena-over__score {
+  font-size: 56px;
+  font-weight: 800;
+  color: var(--gold);
+  margin: 6px 0 18px;
+  text-shadow: 0 6px 24px rgba(255, 193, 72, 0.35);
+}
+.arena-over__row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* phase-driven visibility (classes toggled from main.ts) */
+body.arena-play .selector {
+  display: none;
+}
+body.arena-play #arenaBuild {
+  display: none;
+}

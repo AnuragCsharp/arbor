@@ -1,6 +1,8 @@
 import './styles.css';
 import { detect, type CapabilityReport } from './capability';
 import { ARExperience } from './ar';
+import { ArenaExperience, type ArenaPhase } from './arena3d';
+import { unlockAudio } from './sfx';
 import { launchModelViewerAR } from './ios';
 import { thumbSvg } from './thumbnails';
 import { TREE_SPECS, TREE_TYPES, type TreeType } from './trees';
@@ -26,11 +28,27 @@ const placedCount = $('placedCount');
 const scaleSlider = $<HTMLInputElement>('scaleSlider');
 const scaleVal = $('scaleVal');
 
+// arena elements
+const arenaSection = $('arena');
+const arenaMount = $('arenaMount');
+const arenaBtn = $<HTMLButtonElement>('arenaBtn');
+const crosshair = $('crosshair');
+const arenaHud = $('arenaHud');
+const arenaScore = $('arenaScore');
+const arenaTrees = $('arenaTrees');
+const arenaWave = $('arenaWave');
+const arenaHint = $('arenaHint');
+const arenaBuild = $('arenaBuild');
+const arenaCount = $('arenaCount');
+const arenaOver = $('arenaOver');
+const arenaFinal = $('arenaFinal');
+
 /* ---------- state ---------- */
 let currentTree: TreeType = 'oak';
 let scaleMultiplier = 1;
 let report: CapabilityReport;
 let ar: ARExperience | null = null;
+let arena: ArenaExperience | null = null;
 let statusTimer: number | undefined;
 
 /* ---------- ui helpers ---------- */
@@ -166,6 +184,59 @@ async function onStart(): Promise<void> {
   }
 }
 
+/* ---------- arena game (universal 3D, every device) ---------- */
+function setArenaPhase(phase: ArenaPhase): void {
+  document.body.classList.toggle('arena-play', phase === 'play');
+  crosshair.hidden = phase !== 'play';
+  arenaHud.hidden = phase !== 'play';
+  arenaBuild.hidden = phase !== 'build';
+  arenaOver.hidden = phase !== 'over';
+}
+
+function startArena(): void {
+  // prime audio inside this user gesture so the first laser/chop is audible
+  unlockAudio();
+  intro.hidden = true;
+  overlay.hidden = true;
+  arenaSection.hidden = false;
+  arenaScore.textContent = '0';
+  arenaWave.textContent = '1';
+
+  arena = new ArenaExperience(arenaMount, {
+    getCurrentTree: () => currentTree,
+    onPhase: setArenaPhase,
+    onPlacedCount: (n) => {
+      arenaCount.textContent = `${n} planted`;
+    },
+    onScore: (s) => {
+      arenaScore.textContent = String(s);
+    },
+    onTreesRemaining: (alive, total) => {
+      arenaTrees.textContent = `${alive}/${total}`;
+    },
+    onWave: (w) => {
+      arenaWave.textContent = String(w);
+    },
+    onGameOver: (s) => {
+      arenaFinal.textContent = String(s);
+    },
+    onHint: (msg) => {
+      arenaHint.textContent = msg;
+    },
+  });
+
+  setArenaPhase('build');
+  arena.start();
+}
+
+function quitArena(): void {
+  arena?.dispose();
+  arena = null;
+  arenaSection.hidden = true;
+  document.body.classList.remove('arena-play');
+  intro.hidden = false;
+}
+
 /* ---------- wiring ---------- */
 function wireControls(): void {
   startBtn.addEventListener('click', () => void onStart());
@@ -179,6 +250,15 @@ function wireControls(): void {
     scaleVal.textContent = `${Math.round(scaleMultiplier * 100)}%`;
     ar?.rescaleLast(scaleMultiplier);
   });
+
+  // arena controls
+  arenaBtn.addEventListener('click', () => startArena());
+  $('arenaUndo').addEventListener('click', () => arena?.undo());
+  $('arenaClear').addEventListener('click', () => arena?.clear());
+  $('arenaLock').addEventListener('click', () => arena?.lockArena());
+  $('arenaExit').addEventListener('click', () => quitArena());
+  $('arenaReplay').addEventListener('click', () => arena?.restart());
+  $('arenaQuit').addEventListener('click', () => quitArena());
 }
 
 function hintForReport(r: CapabilityReport): string {

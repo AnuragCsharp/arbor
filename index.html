@@ -41,6 +41,10 @@
 
           <button id="startBtn" class="btn btn--primary" type="button">Start AR</button>
           <p id="startHint" class="intro__hint"></p>
+
+          <div class="intro__divider"><span>or</span></div>
+          <button id="arenaBtn" class="btn btn--arena" type="button">🎮 Arena Mode — defend your grove</button>
+          <p class="intro__hint">Works on every phone. Plant trees, lock the arena, then blast the creatures that come to chop them.</p>
         </div>
 
         <!-- model-viewer for the iOS Quick Look pathway is injected here on demand -->
@@ -73,6 +77,55 @@
           <p class="hud__tip">Tap when the ring turns green to plant the tree.</p>
         </div>
       </div>
+
+      <!-- Arena game (universal 3D turret defence — runs on every device) -->
+      <section id="arena" class="arena" hidden>
+        <div id="arenaMount" class="arena__mount"></div>
+
+        <!-- centre aim crosshair (play phase) -->
+        <div id="crosshair" class="crosshair" aria-hidden="true" hidden>
+          <span class="crosshair__ring"></span>
+          <span class="crosshair__dot"></span>
+          <span class="crosshair__tick crosshair__tick--t"></span>
+          <span class="crosshair__tick crosshair__tick--b"></span>
+          <span class="crosshair__tick crosshair__tick--l"></span>
+          <span class="crosshair__tick crosshair__tick--r"></span>
+        </div>
+
+        <!-- score / trees / wave (play phase) -->
+        <div id="arenaHud" class="arena-hud" hidden>
+          <span class="chip">🏆 <b id="arenaScore">0</b></span>
+          <span class="chip">🌳 <b id="arenaTrees">0</b></span>
+          <span class="chip">🌊 Wave <b id="arenaWave">1</b></span>
+        </div>
+
+        <button id="arenaExit" class="chip chip--btn arena-exit" type="button">Exit</button>
+
+        <p id="arenaHint" class="arena-hint"></p>
+
+        <!-- build controls (build phase) -->
+        <div id="arenaBuild" class="arena-build">
+          <span id="arenaCount" class="chip chip--dim">0 planted</span>
+          <div class="arena-build__row">
+            <button id="arenaUndo" class="btn btn--ghost" type="button">Undo</button>
+            <button id="arenaClear" class="btn btn--ghost" type="button">Clear</button>
+            <button id="arenaLock" class="btn btn--primary" type="button">Lock Arena ▶</button>
+          </div>
+        </div>
+
+        <!-- game over -->
+        <div id="arenaOver" class="arena-over" hidden>
+          <div class="arena-over__card">
+            <h2>Grove Felled</h2>
+            <p>Final score</p>
+            <div id="arenaFinal" class="arena-over__score">0</div>
+            <div class="arena-over__row">
+              <button id="arenaReplay" class="btn btn--primary" type="button">Rebuild &amp; Replay</button>
+              <button id="arenaQuit" class="btn btn--ghost" type="button">Quit</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- Tree selector (always available) -->
       <nav id="selector" class="selector" aria-label="Choose a tree"></nav>
