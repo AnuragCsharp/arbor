@@ -20,6 +20,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* the [hidden] attribute must win over any author `display` rule below
+   (e.g. .arena-over{display:grid}), otherwise hidden panels render anyway */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
