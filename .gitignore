@@ -4,3 +4,6 @@ dist
 .DS_Store
 .unlazy
 GATES.md
+
+# local-only live URL marker for verify-live
+.deploy-url
